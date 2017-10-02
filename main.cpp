@@ -47,22 +47,29 @@ int saveTransformed(
     uchar *transformed_data, double *transformed_label,
     const char *key,
     const int rows_data, const int cols_data,
-    const int rows_label, const int cols_label,
+    const int rows_label,
+    const int cols_label,
+    const int np,
     const int start_label_data,
-    const H5::Group *data_group, const H5::Group *label_group) {
+    const H5::Group *data_group,
+    const H5::Group *mask_group,
+    const H5::Group *label_group) {
 
   // prepare data
 
   Eigen::MatrixXd weights = Eigen::Map<Eigen::MatrixXd>(
-      transformed_label, rows_label, cols_label);
+      transformed_label, rows_label * np, cols_label);
 
   Eigen::MatrixXd vec = Eigen::Map<Eigen::MatrixXd>(
-      transformed_label + start_label_data, rows_label, cols_label);
+      transformed_label + start_label_data, rows_label * np, cols_label);
 
-  Eigen::MatrixXd label = weights.cwiseProduct(vec);
+  Eigen::MatrixXd label = vec.cwiseProduct(weights);
+
+  Eigen::MatrixXd mask = Eigen::Map<Eigen::MatrixXd>(
+      transformed_label, rows_label, cols_label);
 
   // save label
-  const hsize_t rows(rows_label);
+  const hsize_t rows(rows_label * np);
   const hsize_t cols(cols_label);
   hsize_t fdim[] = {rows, cols}; // dim sizes of ds (on disk)
   H5::DataSpace fspace( 2, fdim );
@@ -86,6 +93,17 @@ int saveTransformed(
   dataset = new H5::DataSet(data_group->createDataSet(
       key, H5::PredType::NATIVE_UCHAR, fspace_data, plist));
   dataset->write( transformed_data , H5::PredType::NATIVE_UCHAR);
+  dataset->close();
+  delete dataset;
+
+  // save mask
+  const hsize_t rows_mask(rows_label);
+  const hsize_t cols_mask(cols_label);
+  hsize_t fdim_mask[] = {rows_mask, cols_mask}; // dim sizes of ds (on disk)
+  H5::DataSpace fspace_mask( 2, fdim_mask );
+  dataset = new H5::DataSet(mask_group->createDataSet(
+      key, H5::PredType::NATIVE_DOUBLE, fspace_mask, plist));
+  dataset->write( mask.data() , H5::PredType::NATIVE_DOUBLE);
   dataset->close();
   delete dataset;
 
@@ -126,11 +144,7 @@ int main(int argc, char* argv[]) {
   CPMDataTransformer* cpmDataTransformer = new CPMDataTransformer(params);
   cpmDataTransformer->InitRand();
 
-  uchar* transformed_data = new uchar[params.crop_size_x * params.crop_size_y * 3];
-  int np = 2*(params.num_parts+1);
-  int label_size = (params.crop_size_x / params.stride) * (params.crop_size_y / params.stride) * np;
-  double* transformed_label = new double[label_size];
-
+  const int np = 2*(params.num_parts+1);
   const int stride = params.stride;
   const int grid_x = params.crop_size_x / stride;
   const int grid_y = params.crop_size_y / stride;
@@ -139,6 +153,9 @@ int main(int argc, char* argv[]) {
   const int heat_channels = 19;
   const int ch = vec_channels + heat_channels;
   const int start_label_data = (params.num_parts+1) * channelOffset;
+
+  uchar* transformed_data = new uchar[params.crop_size_x * params.crop_size_y * 3];
+  double* transformed_label = new double[grid_x * grid_y * np];
 
   // read all samples ids
   std::vector<string> keys;
@@ -150,6 +167,7 @@ int main(int argc, char* argv[]) {
   H5::H5File *f_out = new H5::H5File( out_dataset.c_str(), H5F_ACC_TRUNC );
 
   H5::Group* data_group = new H5::Group( f_out->createGroup( "/data" ));
+  H5::Group* mask_group = new H5::Group( f_out->createGroup( "/mask" ));
   H5::Group* label_group = new H5::Group( f_out->createGroup( "/label" ));
 
   // process all samples
@@ -177,7 +195,7 @@ int main(int argc, char* argv[]) {
         transformed_data, transformed_label,
         key.c_str(),
         params.crop_size_y * 3, params.crop_size_x,
-        grid_y * ch, grid_x, start_label_data, data_group, label_group);
+        grid_y, grid_x, ch, start_label_data, data_group, mask_group, label_group);
 
     delete [] meta.datum;
 
@@ -188,6 +206,7 @@ int main(int argc, char* argv[]) {
   datum->close();
   label_group->close();
   data_group->close();
+  mask_group->close();
   delete datum;
   delete [] transformed_data;
   delete [] transformed_label;
