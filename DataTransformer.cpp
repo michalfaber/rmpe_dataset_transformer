@@ -12,27 +12,6 @@ unsigned int caffe_rng_rand() {
 
 
 CPMDataTransformer::CPMDataTransformer(const TransformationParameter& param) : param_(param) {
-  // check if we want to use mean_file
-//  if (param_.has_mean_file()) {
-//    CHECK_EQ(param_.mean_value_size(), 0) <<
-//                                          "Cannot specify mean_file and mean_value at the same time";
-//    const string& mean_file = param.mean_file();
-//    if (Caffe::root_solver()) {
-//      LOG(INFO) << "Loading mean file from: " << mean_file;
-//    }
-//    BlobProto blob_proto;
-//    ReadProtoFromBinaryFileOrDie(mean_file.c_str(), &blob_proto);
-//    data_mean_.FromProto(blob_proto);
-//  }
-  // check if we want to use mean_value
-//  if (param_.mean_value_size() > 0) {
-//    CHECK(param_.has_mean_file() == false) <<
-//                                           "Cannot specify mean_file and mean_value at the same time";
-//    for (int c = 0; c < param_.mean_value_size; ++c) {
-//      mean_values_.push_back(param_.mean_value(c));
-//    }
-//  }
-
   np_in_lmdb = param_.np_in_lmdb;
   np = param_.num_parts;
   is_table_set = false;
@@ -75,12 +54,6 @@ void CPMDataTransformer::SetAugTable(int numData){
       flip_file >> aug_flips[i][j];
     }
   }
-  // for(int i = 0; i < numData; i++){
-  //   for(int j = 0; j < param_.num_total_augs(); j++){
-  //     printf("%d ", (int)aug_degs[i][j]);
-  //   }
-  //   printf("\n");
-  // }
 }
 
 void CPMDataTransformer::swapLeftRight(Joints& j) {
@@ -185,7 +158,6 @@ void CPMDataTransformer::TransformJoints(Joints& j) {
 bool CPMDataTransformer::augmentation_flip(Mat& img_src, Mat& img_aug, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
   bool doflip;
   if(param_.aug_way == "rand"){
-    //float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
     float dice = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
     doflip = (dice <= param_.flip_prob);
   }
@@ -231,8 +203,6 @@ float CPMDataTransformer::augmentation_rotate(Mat& img_src, Mat& img_dst, Mat& m
 
   float degree;
   if(param_.aug_way == "rand"){
-    //float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-
     float dice = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
     degree = (dice - 0.5) * 2 * param_.max_rotate_degree;
   }
@@ -249,8 +219,7 @@ float CPMDataTransformer::augmentation_rotate(Mat& img_src, Mat& img_dst, Mat& m
   // adjust transformation matrix
   R.at<double>(0,2) += bbox.width/2.0 - center.x;
   R.at<double>(1,2) += bbox.height/2.0 - center.y;
-  //LOG(INFO) << "R=[" << R.at<double>(0,0) << " " << R.at<double>(0,1) << " " << R.at<double>(0,2) << ";"
-  //          << R.at<double>(1,0) << " " << R.at<double>(1,1) << " " << R.at<double>(1,2) << "]";
+
   warpAffine(img_src, img_dst, R, bbox.size(), INTER_CUBIC, BORDER_CONSTANT, Scalar(128,128,128));
   if(mode >4){
     warpAffine(mask_miss, mask_miss, R, bbox.size(), INTER_CUBIC, BORDER_CONSTANT, Scalar(255)); //Scalar(0) for MPI, COCO with Scalar(255);
@@ -274,17 +243,14 @@ float CPMDataTransformer::augmentation_rotate(Mat& img_src, Mat& img_dst, Mat& m
 }
 
 float CPMDataTransformer::augmentation_scale(Mat& img_src, Mat& img_temp, Mat& mask_miss, Mat& mask_all, MetaData& meta, int mode) {
-  //float dice = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0,1]
   float dice = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
-
   float scale_multiplier;
-  //float scale = (param_.scale_max() - param_.scale_min()) * dice + param_.scale_min(); //linear shear into [scale_min, scale_max]
+
   if(dice > param_.scale_prob) {
     img_temp = img_src.clone();
     scale_multiplier = 1;
   }
   else {
-    //float dice2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0,1]
     float dice2 = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
     scale_multiplier = (param_.scale_max - param_.scale_min) * dice2 + param_.scale_min; //linear shear into [scale_min, scale_max]
   }
@@ -314,8 +280,6 @@ float CPMDataTransformer::augmentation_scale(Mat& img_src, Mat& img_temp, Mat& m
 }
 
 Size CPMDataTransformer::augmentation_croppad(Mat& img_src, Mat& img_dst, Mat& mask_miss, Mat& mask_miss_aug, Mat& mask_all, Mat& mask_all_aug, MetaData& meta, int mode) {
-  //float dice_x = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0,1]
-  //float dice_y = static_cast <float> (rand()) / static_cast <float> (RAND_MAX); //[0,1]
   float dice_x = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
   float dice_y = Rand(RAND_MAX) / static_cast <float> (RAND_MAX);
 
@@ -325,13 +289,9 @@ Size CPMDataTransformer::augmentation_croppad(Mat& img_src, Mat& img_dst, Mat& m
   float x_offset = int((dice_x - 0.5) * 2 * param_.center_perterb_max);
   float y_offset = int((dice_y - 0.5) * 2 * param_.center_perterb_max);
 
-  //LOG(INFO) << "Size of img_temp is " << img_temp.cols << " " << img_temp.rows;
-  //LOG(INFO) << "ROI is " << x_offset << " " << y_offset << " " << min(800, img_temp.cols) << " " << min(256, img_temp.rows);
   Point2i center = meta.objpos + Point2f(x_offset, y_offset);
   int offset_left = -(center.x - (crop_x/2));
   int offset_up = -(center.y - (crop_y/2));
-  // int to_pad_right = max(center.x + (crop_x - crop_x/2) - img_src.cols, 0);
-  // int to_pad_down = max(center.y + (crop_y - crop_y/2) - img_src.rows, 0);
 
   img_dst = Mat::zeros(crop_y, crop_x, CV_8UC3) + Scalar(128,128,128);
   mask_miss_aug = Mat::zeros(crop_y, crop_x, CV_8UC1) + Scalar(255); //for MPI, COCO with Scalar(255);
@@ -369,7 +329,6 @@ Size CPMDataTransformer::augmentation_croppad(Mat& img_src, Mat& img_dst, Mat& m
 }
 
 void CPMDataTransformer::putGaussianMaps(double* entry, Point2f center, int stride, int grid_x, int grid_y, float sigma){
-  //LOG(INFO) << "putGaussianMaps here we start for " << center.x << " " << center.y;
   float start = stride/2.0 - 0.5; //0 if stride = 1, 0.5 if stride = 2, 1.5 if stride = 4, ...
   for (int g_y = 0; g_y < grid_y; g_y++){
     for (int g_x = 0; g_x < grid_x; g_x++){
@@ -402,14 +361,6 @@ void CPMDataTransformer::putVecMaps(double* entryX, double* entryY, Mat& count, 
   bc.x = bc.x /norm_bc;
   bc.y = bc.y /norm_bc;
 
-  // float x_p = (centerA.x + centerB.x) / 2;
-  // float y_p = (centerA.y + centerB.y) / 2;
-  // float angle = atan2f(centerB.y - centerA.y, centerB.x - centerA.x);
-  // float sine = sinf(angle);
-  // float cosine = cosf(angle);
-  // float a_sqrt = (centerA.x - x_p) * (centerA.x - x_p) + (centerA.y - y_p) * (centerA.y - y_p);
-  // float b_sqrt = 10; //fixed
-
   for (int g_y = min_y; g_y < max_y; g_y++){
     for (int g_x = min_x; g_x < max_x; g_x++){
       Point2f ba;
@@ -417,65 +368,20 @@ void CPMDataTransformer::putVecMaps(double* entryX, double* entryY, Mat& count, 
       ba.y = g_y - centerA.y;
       float dist = std::abs(ba.x*bc.y -ba.y*bc.x);
 
-      // float A = cosine * (g_x - x_p) + sine * (g_y - y_p);
-      // float B = sine * (g_x - x_p) - cosine * (g_y - y_p);
-      // float judge = A * A / a_sqrt + B * B / b_sqrt;
-
       if(dist <= thre){
-        //if(judge <= 1){
         int cnt = count.at<uchar>(g_y, g_x);
-        //LOG(INFO) << "putVecMaps here we start for " << g_x << " " << g_y;
         if (cnt == 0){
           entryX[g_y*grid_x + g_x] = bc.x;
           entryY[g_y*grid_x + g_x] = bc.y;
         }
         else{
+          // averaging when limbs of multiple persons overlap
           entryX[g_y*grid_x + g_x] = (entryX[g_y*grid_x + g_x]*cnt + bc.x) / (cnt + 1);
           entryY[g_y*grid_x + g_x] = (entryY[g_y*grid_x + g_x]*cnt + bc.y) / (cnt + 1);
           count.at<uchar>(g_y, g_x) = cnt + 1;
         }
       }
 
-    }
-  }
-}
-
-void CPMDataTransformer::putVecPeaks(double* entryX, double* entryY, Mat& count, Point2f centerA, Point2f centerB, int stride, int grid_x, int grid_y, float sigma, int thre){
-  //int thre = 4;
-  centerB = centerB*0.125;
-  centerA = centerA*0.125;
-  Point2f bc = centerB - centerA;
-  float norm_bc = sqrt(bc.x*bc.x + bc.y*bc.y);
-  bc.x = bc.x /norm_bc;
-  bc.y = bc.y /norm_bc;
-
-  for(int j=0;j<3;j++){
-    //Point2f center = centerB*0.5 + centerA*0.5;
-    Point2f center = centerB*0.5*j + centerA*0.5*(2-j);
-
-    int min_x = std::max( int(floor(center.x-thre)), 0);
-    int max_x = std::min( int(ceil(center.x+thre)), grid_x);
-
-    int min_y = std::max( int(floor(center.y-thre)), 0);
-    int max_y = std::min( int(ceil(center.y+thre)), grid_y);
-
-    for (int g_y = min_y; g_y < max_y; g_y++){
-      for (int g_x = min_x; g_x < max_x; g_x++){
-        float dist = (g_x-center.x)*(g_x-center.x) + (g_y-center.y)*(g_y-center.y);
-        if(dist <= thre){
-          int cnt = count.at<uchar>(g_y, g_x);
-          //LOG(INFO) << "putVecMaps here we start for " << g_x << " " << g_y;
-          if (cnt == 0){
-            entryX[g_y*grid_x + g_x] = bc.x;
-            entryY[g_y*grid_x + g_x] = bc.y;
-          }
-          else{
-            entryX[g_y*grid_x + g_x] = (entryX[g_y*grid_x + g_x]*cnt + bc.x) / (cnt + 1);
-            entryY[g_y*grid_x + g_x] = (entryY[g_y*grid_x + g_x]*cnt + bc.y) / (cnt + 1);
-            count.at<uchar>(g_y, g_x) = cnt + 1;
-          }
-        }
-      }
     }
   }
 }
@@ -500,6 +406,7 @@ void CPMDataTransformer::generateLabelMap(double* transformed_label, Mat& img_au
   }
 
   if (np == 56){
+    // add gausians for all parts
     for (int i = 0; i < 18; i++){
       Point2f center = meta.joint_self.joints[i];
       if(meta.joint_self.isVisible[i] <= 1){
@@ -549,7 +456,6 @@ void CPMDataTransformer::generateLabelMap(double* transformed_label, Mat& img_au
         transformed_label[(2*np+1)*channelOffset + g_y*grid_x + g_x] = max(1.0-maximum, 0.0);
       }
     }
-    //LOG(INFO) << "background put";
   }
 
   else if (np == 43){
@@ -576,7 +482,6 @@ void CPMDataTransformer::generateLabelMap(double* transformed_label, Mat& img_au
       Mat count = Mat::zeros(grid_y, grid_x, CV_8UC1);
       Joints jo = meta.joint_self;
       if(jo.isVisible[mid_1[i]]<=1 && jo.isVisible[mid_2[i]]<=1){
-        //putVecPeaks
         putVecMaps(transformed_label + (np+ 1+ 2*i)*channelOffset, transformed_label + (np+ 2+ 2*i)*channelOffset,
                    count, jo.joints[mid_1[i]], jo.joints[mid_2[i]], param_.stride, grid_x, grid_y, param_.sigma, thre); //self
       }
@@ -584,7 +489,6 @@ void CPMDataTransformer::generateLabelMap(double* transformed_label, Mat& img_au
       for(int j = 0; j < meta.numOtherPeople; j++){ //for every other person
         Joints jo2 = meta.joint_others[j];
         if(jo2.isVisible[mid_1[i]]<=1 && jo2.isVisible[mid_2[i]]<=1){
-          //putVecPeaks
           putVecMaps(transformed_label + (np+ 1+ 2*i)*channelOffset, transformed_label + (np+ 2+ 2*i)*channelOffset,
                      count, jo2.joints[mid_1[i]], jo2.joints[mid_2[i]], param_.stride, grid_x, grid_y, param_.sigma, thre); //self
         }
@@ -602,33 +506,24 @@ void CPMDataTransformer::generateLabelMap(double* transformed_label, Mat& img_au
         transformed_label[(2*np+1)*channelOffset + g_y*grid_x + g_x] = max(1.0-maximum, 0.0);
       }
     }
-    //LOG(INFO) << "background put";
   }
 
   //visualize
   if(1 && param_.visualize){
     Mat label_map;
-    //for(int i = 0; i < 2*(np+1); i++){
     for(int i = 95; i < 2*(np+1); i++){
       label_map = Mat::zeros(grid_y, grid_x, CV_8UC1);
-      //int MPI_index = MPI_to_ours[i];
-      //Point2f center = meta.joint_self.joints[MPI_index];
       for (int g_y = 0; g_y < grid_y; g_y++){
-        //printf("\n");
         for (int g_x = 0; g_x < grid_x; g_x++){
           label_map.at<uchar>(g_y,g_x) = (int)(transformed_label[i*channelOffset + g_y*grid_x + g_x]*255);
-          //printf("%f ", transformed_label_entry[g_y*grid_x + g_x]*255);
         }
       }
       resize(label_map, label_map, Size(), stride, stride, INTER_LINEAR);
       applyColorMap(label_map, label_map, COLORMAP_JET);
       addWeighted(label_map, 0.5, img_aug, 0.5, 0.0, label_map);
 
-      //center = center * (1.0/(float)param_.stride());
-      //circle(label_map, center, 3, CV_RGB(255,0,255), -1);
       char imagename [100];
       sprintf(imagename, "augment_%04d_label_part_%02d.jpg", meta.write_number, i);
-      //LOG(INFO) << "filename is " << imagename;
       imwrite(imagename, label_map);
     }
 
@@ -701,20 +596,13 @@ void CPMDataTransformer::ReadMetaData(MetaData& meta, const uchar *data, size_t 
     cur_epoch++;
   }
   meta.epoch = cur_epoch;
-  if(meta.write_number % 1000 == 0){
-//    LOG(INFO) << "dataset: " << meta.dataset <<"; img_size: " << meta.img_size
-//              << "; meta.annolist_index: " << meta.annolist_index << "; meta.write_number: " << meta.write_number
-//              << "; meta.total_write_number: " << meta.total_write_number << "; meta.epoch: " << meta.epoch;
-  }
   if(param_.aug_way == "table" && !is_table_set){
     SetAugTable(meta.total_write_number);
     is_table_set = true;
   }
-
   // ------------------- objpos -----------------------
   DecodeFloats(data, offset3+3*offset1, &meta.objpos.x, 1);
   DecodeFloats(data, offset3+3*offset1+4, &meta.objpos.y, 1);
-  //meta.objpos -= Point2f(1,1);
   // ------------ scale_self, joint_self --------------
   DecodeFloats(data, offset3+4*offset1, &meta.scale_self, 1);
   meta.joint_self.joints.resize(np_in_lmdb);
@@ -722,7 +610,6 @@ void CPMDataTransformer::ReadMetaData(MetaData& meta, const uchar *data, size_t 
   for(int i=0; i<np_in_lmdb; i++){
     DecodeFloats(data, offset3+5*offset1+4*i, &meta.joint_self.joints[i].x, 1);
     DecodeFloats(data, offset3+6*offset1+4*i, &meta.joint_self.joints[i].y, 1);
-    //meta.joint_self.joints[i] -= Point2f(1,1); //from matlab 1-index to c++ 0-index
     float isVisible;
     DecodeFloats(data, offset3+7*offset1+4*i, &isVisible, 1);
     if (isVisible == 2){
@@ -735,7 +622,6 @@ void CPMDataTransformer::ReadMetaData(MetaData& meta, const uchar *data, size_t 
         meta.joint_self.isVisible[i] = 2; // 2 means cropped, 0 means occluded by still on image
       }
     }
-    //LOG(INFO) << meta.joint_self.joints[i].x << " " << meta.joint_self.joints[i].y << " " << meta.joint_self.isVisible[i];
   }
 
   //others (7 lines loaded)
@@ -745,7 +631,6 @@ void CPMDataTransformer::ReadMetaData(MetaData& meta, const uchar *data, size_t 
   for(int p=0; p<meta.numOtherPeople; p++){
     DecodeFloats(data, offset3+(8+p)*offset1, &meta.objpos_other[p].x, 1);
     DecodeFloats(data, offset3+(8+p)*offset1+4, &meta.objpos_other[p].y, 1);
-    //meta.objpos_other[p] -= Point2f(1,1);
     DecodeFloats(data, offset3+(8+meta.numOtherPeople)*offset1+4*p, &meta.scale_other[p], 1);
   }
   //8 + numOtherPeople lines loaded
@@ -755,7 +640,6 @@ void CPMDataTransformer::ReadMetaData(MetaData& meta, const uchar *data, size_t 
     for(int i=0; i<np_in_lmdb; i++){
       DecodeFloats(data, offset3+(9+meta.numOtherPeople+3*p)*offset1+4*i, &meta.joint_others[p].joints[i].x, 1);
       DecodeFloats(data, offset3+(9+meta.numOtherPeople+3*p+1)*offset1+4*i, &meta.joint_others[p].joints[i].y, 1);
-      //meta.joint_others[p].joints[i] -= Point2f(1,1);
       float isVisible;
       DecodeFloats(data, offset3+(9+meta.numOtherPeople+3*p+2)*offset1+4*i, &isVisible, 1);
       if (isVisible == 2){
@@ -781,11 +665,9 @@ void CPMDataTransformer::dumpEverything(double* transformed_data, double* transf
   myfile.open(filename);
   int data_length = param_.crop_size_y * param_.crop_size_x * 4;
 
-  //LOG(INFO) << "before copy data: " << filename << "  " << data_length;
   for(int i = 0; i<data_length; i++){
     myfile << transformed_data[i] << " ";
   }
-  //LOG(INFO) << "after copy data: " << filename << "  " << data_length;
   myfile.close();
 
   sprintf(filename, "transformed_label_%04d_%02d", meta.annolist_index, meta.people_index);
@@ -798,8 +680,6 @@ void CPMDataTransformer::dumpEverything(double* transformed_data, double* transf
 }
 
 void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channels, const int datum_height, const int datum_width, uchar* transformed_data, double* transformed_label) {
-
-  //TODO: some parameter should be set in prototxt
   int clahe_tileSize = param_.clahe_tile_size;
   int clahe_clipLimit = param_.clahe_clip_limit;
   //float targetDist = 41.0/35.0;
@@ -812,22 +692,10 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
   MetaData meta;
 
   // To do: make this a parameter in caffe.proto
-  //const int mode = 5; //related to datum.channels();
-  const int mode = 5;
-
-  //const int crop_size = param_.crop_size();
-  //const Dtype scale = param_.scale();
-  //const bool do_mirror = param_.mirror() && Rand(2);
-  //const bool has_mean_file = param_.has_mean_file();
-  //const bool has_mean_values = mean_values_.size() > 0;
+  const int mode = 5;  //related to datum.channels();
   int crop_x = param_.crop_size_x;
   int crop_y = param_.crop_size_y;
 
-
-  //CHECK_GE(datum_height, crop_size);
-  //CHECK_GE(datum_width, crop_size);
-  //CPUTimer timer1;
-  //timer1.Start();
   //before any transformation, get the image from datum
   Mat img = Mat::zeros(datum_height, datum_width, CV_8UC3);
   Mat mask_all, mask_miss;
@@ -873,10 +741,6 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
     }
   }
 
-
-  //VLOG(2) << "  rgb[:] = datum: " << timer1.MicroSeconds()/1000.0 << " ms";
-  //timer1.Start();
-
   //color, contract
   if(param_.do_clahe)
     clahe(img, clahe_tileSize, clahe_clipLimit);
@@ -885,8 +749,6 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
     cv::cvtColor(img, img, CV_BGR2GRAY);
     cv::cvtColor(img, img, CV_GRAY2BGR);
   }
-  //VLOG(2) << "  color: " << timer1.MicroSeconds()/1000.0 << " ms";
-  //timer1.Start();
 
   int offset3 = 3 * offset;
   int offset1 = datum_width;
@@ -895,37 +757,18 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
   if(param_.transform_body_joint) // we expect to transform body joints, and not to transform hand joints
     TransformMetaJoints(meta);
 
-  //VLOG(2) << "  ReadMeta+MetaJoints: " << timer1.MicroSeconds()/1000.0 << " ms";
-  //timer1.Start();
-  //visualize original
-  //if(0 && param_.visualize())
-  //  visualize(img, meta, as);
-
   //Start transforming
   Mat img_aug = Mat::zeros(crop_y, crop_x, CV_8UC3);
   Mat mask_miss_aug, mask_all_aug ;
-  //Mat mask_miss_aug = Mat::zeros(crop_y, crop_x, CV_8UC1);
-  //Mat mask_all_aug = Mat::zeros(crop_y, crop_x, CV_8UC1);
   Mat img_temp, img_temp2, img_temp3; //size determined by scale
-  //VLOG(2) << "   input size (" << img.cols << ", " << img.rows << ")";
-  // We only do random transform as augmentation when training.
-
   as.scale = augmentation_scale(img, img_temp, mask_miss, mask_all, meta, mode);
-  //LOG(INFO) << meta.joint_self.joints.size();
-  //LOG(INFO) << meta.joint_self.joints[0];
   as.degree = augmentation_rotate(img_temp, img_temp2, mask_miss, mask_all, meta, mode);
-  //LOG(INFO) << meta.joint_self.joints.size();
-  //LOG(INFO) << meta.joint_self.joints[0];
   //if(0 && param_.visualize())
   //  visualize(img_temp2, meta, as);
   as.crop = augmentation_croppad(img_temp2, img_temp3, mask_miss, mask_miss_aug, mask_all, mask_all_aug, meta, mode);
-  //LOG(INFO) << meta.joint_self.joints.size();
-  //LOG(INFO) << meta.joint_self.joints[0];
   //if(0 && param_.visualize())
   //  visualize(img_temp3, meta, as);
   as.flip = augmentation_flip(img_temp3, img_aug, mask_miss_aug, mask_all_aug, meta, mode);
-  //LOG(INFO) << meta.joint_self.joints.size();
-  //LOG(INFO) << meta.joint_self.joints[0];
   //if(param_.visualize())
   //  visualize(img_aug, meta, as);
 
@@ -935,11 +778,6 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
   if (mode > 5){
     resize(mask_all_aug, mask_all_aug, Size(), 1.0/stride, 1.0/stride, INTER_CUBIC);
   }
-
-  //VLOG(2) << "  Aug: " << timer1.MicroSeconds()/1000.0 << " ms";
-  //timer1.Start();
-  //LOG(INFO) << "scale: " << as.scale << "; crop:(" << as.crop.width << "," << as.crop.height
-  //          << "); flip:" << as.flip << "; degree: " << as.degree;
 
   //copy transformed img (img_aug) into transformed_data, do the mean-subtraction here
   offset = img_aug.rows * img_aug.cols;
@@ -952,9 +790,6 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
   for (int i = 0; i < img_aug.rows; ++i) {
     for (int j = 0; j < img_aug.cols; ++j) {
       Vec3b& rgb = img_aug.at<Vec3b>(i, j);
-//      transformed_data[0*offset + i*img_aug.cols + j] = (rgb[0] - 128)/256.0;
-//      transformed_data[1*offset + i*img_aug.cols + j] = (rgb[1] - 128)/256.0;
-//      transformed_data[2*offset + i*img_aug.cols + j] = (rgb[2] - 128)/256.0;
       transformed_data[0*offset + i*img_aug.cols + j] = rgb[0];
       transformed_data[1*offset + i*img_aug.cols + j] = rgb[1];
       transformed_data[2*offset + i*img_aug.cols + j] = rgb[2];
@@ -983,11 +818,8 @@ void CPMDataTransformer::Transform_nv(const uchar *data, const int datum_channel
     }
   }
 
-  //putGaussianMaps(transformed_data + 3*offset, meta.objpos, 1, img_aug.cols, img_aug.rows, param_.sigma_center());
-  //LOG(INFO) << "image transformation done!";
   generateLabelMap(transformed_label, img_aug, meta);
 
-  //VLOG(2) << "  putGauss+genLabel: " << timer1.MicroSeconds()/1000.0 << " ms";
   //starts to visualize everything (transformed_data in 4 ch, label) fed into conv1
   //if(param_.visualize()){
   //dumpEverything(transformed_data, transformed_label, meta);

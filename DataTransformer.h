@@ -131,18 +131,14 @@ public:
 
   Size augmentation_croppad(Mat& img_temp, Mat& img_aug, Mat& mask_miss, Mat& mask_miss_aug, Mat& mask_all, Mat& mask_all_aug, MetaData& meta, int mode);
 
-
   void generateLabelMap(double*, Mat&, MetaData meta);
   void putGaussianMaps(double* entry, Point2f center, int stride, int grid_x, int grid_y, float sigma);
   void putVecMaps(double* entryX, double* entryY, Mat& count, Point2f centerA, Point2f centerB, int stride, int grid_x, int grid_y, float sigma, int thre);
-  void putVecPeaks(double* entryX, double* entryY, Mat& count, Point2f centerA, Point2f centerB, int stride, int grid_x, int grid_y, float sigma, int thre);
   void clahe(Mat& img, int, int);
 
   void dumpEverything(double* transformed_data, double* transformed_label, MetaData meta);
   void ReadMetaData(MetaData& meta, const uchar *data, size_t offset3, size_t offset1);
   void Transform_nv(const uchar *data, const int datum_channels, const int datum_height, const int datum_width, uchar* transformed_data, double* transformed_label);
-
-  //void Transform();
 
   void swapLeftRight(Joints& j);
   void SetAugTable(int numData);
