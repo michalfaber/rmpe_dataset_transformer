@@ -1,7 +1,7 @@
 //
 // Created by Michal Faber on 14/09/2017.
 //
-
+#include <fstream>
 #include "DataTransformer.h"
 #include "RNGen.h"
 
